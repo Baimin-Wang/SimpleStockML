@@ -1,3 +1,5 @@
 access.txt
 *.csv
 windowsEnv/
+results.txt
+*.log
