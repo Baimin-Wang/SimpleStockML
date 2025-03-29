@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 def preprocess(data):
+    data.dropna(inplace=True)
     data['Open'] = np.log1p(data['Open'])
     data['Close'] = np.log1p(data['Close'])
     data['High'] = np.log1p(data['High'])
