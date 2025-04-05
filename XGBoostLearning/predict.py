@@ -7,7 +7,7 @@ from indicators import set_indicators
 
 bst = xgb.Booster()
 bst.load_model("stock_Predict_Model.xgb")
-data = pd.read_csv("nvidia.csv")
+data = pd.read_csv("apple.csv")
 with open("scaler.pkl", "rb") as f:
     scaler = pickle.load(f)
 

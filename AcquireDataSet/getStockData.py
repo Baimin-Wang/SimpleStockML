@@ -3,7 +3,8 @@ import pandas as pd
 import time
 
 # 读取符号列表
-tickers = pd.read_csv("russell_1000_symbols.txt", header=None)[0].tolist()  # 读取所有股票符号为列表
+# tickers = pd.read_csv("russell_1000_symbols.txt", header=None)[0].tolist()  # 读取所有股票符号为列表
+tickers = ['AAPL']
 
 # 分成两批
 batch_size = 500
@@ -15,7 +16,7 @@ def download_batch(ticker_batch, filename):
     data = yf.download(
         ticker_batch,
         start="2016-01-01",
-        end="2024-12-31",
+        end="2025-3-28",
         group_by="ticker",
         threads=True,
         auto_adjust=True

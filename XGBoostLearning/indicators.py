@@ -2,71 +2,97 @@ import pandas_ta as ta
 import pandas as pd
 import numpy as np
 
-def set_indicators(data):
-    data['RSI'] = ta.rsi(data['Close'], length=14)  # 将 RSI 的窗口调整为 5
-    data['WR'] = ta.willr(data['High'], data['Low'], data['Close'], length=14)  # WR
-    data['WR'] = data['WR'].replace([np.inf, -np.inf], np.nan)  # 将 Infinity 替换为 NaN
-    bbands = ta.bbands(data['Close'], length=20)
-    data['BB_lower'] = bbands['BBL_20_2.0']
-    data['BB_middle'] = bbands['BBM_20_2.0']
-    data['BB_upper'] = bbands['BBU_20_2.0']
-    data['BB_width'] = bbands['BBB_20_2.0']
-    data['BB_percent'] = bbands['BBP_20_2.0']
-
-    # 均线
-    data['MA5'] = ta.sma(data['Close'], length=5)  # MA5
-    data['MA10'] = ta.sma(data['Close'], length=10)  # MA10
-    data['MA20'] = ta.sma(data['Close'], length=20)  # MA20
-    data['MA50'] = ta.sma(data['Close'], length=50)  # MA50
-
-    # MACD
-    macd = data.ta.macd(close='Close', fast=12, slow=26, signal=9)
-    data['MACD'] = macd['MACD_12_26_9']
-    data['Signal'] = macd['MACDs_12_26_9']
-    data['Histogram'] = macd['MACDh_12_26_9']
-
-    # 计算 KDJ 指标
-    stoch = data.ta.stoch(high='High', low='Low', close='Close', k=14, d=3, smooth_k=3)
-    data['%K'] = stoch['STOCHk_14_3_3']
-    data['%D'] = stoch['STOCHd_14_3_3']
-    # %J 的计算公式
-    data['%J'] = 3 * data['%K'] - 2 * data['%D']
-
-    # ATR: Average True Range，用于衡量波动性
-    data['ATR'] = data.ta.atr(high='High', low='Low', close='Close', length=14)
+def calculate_technical_indicators(group):
+    """为单个股票计算技术指标（确保时间顺序正确）"""
+    group = group.sort_values('Date')
     
-    # OBV: On Balance Volume，用于反映成交量与价格变化的关系
-    data['OBV'] = data.ta.obv()
+    # ===== 目标变量 ===== 
+    group['target_pct_chg'] = (group['Close'].shift(-1) / group['Close'] - 1) * 100  # 次日涨跌幅
+    last_date = group['Date'].max()
+    group.loc[group['Date'] == last_date, 'target_pct_chg'] = np.nan
+    # ===== 价格特征 =====
     
-    # ADX: Average Directional Index及其正负方向指标
-    adx_df = data.ta.adx(high='High', low='Low', close='Close', length=14)
-    data['ADX'] = adx_df['ADX_14']
-    data['DMP'] = adx_df['DMP_14']  # 正向动量
-    data['DMN'] = adx_df['DMN_14']  # 负向动量
-    
-    # Stochastic RSI: 随机RSI，捕捉RSI的超买超卖状态
-    stochrsi = data.ta.stochrsi(close='Close', length=14, k=3, d=3)
-    data['StochRSI_k'] = stochrsi['STOCHRSIk_14_14_3_3']
-    data['StochRSI_d'] = stochrsi['STOCHRSId_14_14_3_3']
-    
-    # CCI: Commodity Channel Index，衡量价格与其移动平均的偏离程度
-    data['CCI'] = data.ta.cci(high='High', low='Low', close='Close', length=20)
-
-    # Date and Time
-    data['Date'] = pd.to_datetime(data['Date'])
-    data['Year'] = data['Date'].dt.year
-    data['Month'] = data['Date'].dt.month
-    data['Day'] = data['Date'].dt.day
-    data['Weekday'] = data['Date'].dt.weekday  # 0: Monday, 6: Sunday
-    data['Quarter'] = data['Date'].dt.quarter
-    data.dropna(subset=['BB_lower', 'BB_middle', 'BB_upper'], inplace=True)
-
-    # Lags
+    # ===== 特征工程 =====
+    # 1. 滞后特征（必须分组计算！）
     for lag in range(1, 16):
-        data[f'lag_{lag}'] = data.groupby('Ticker')['Close'].shift(lag)
-    data[[f'lag_{i}' for i in range(1, 16)]] = data[[f'lag_{i}' for i in range(1, 16)]].fillna(method='ffill')
+        group[f'lag_{lag}'] = group['Close'].shift(lag)
+    
+    # 2. 时间特征
+    group['Year'] = group['Date'].dt.year
+    group['Month'] = group['Date'].dt.month
+    group['Day'] = group['Date'].dt.day
+    group['Weekday'] = group['Date'].dt.weekday.astype(str)
+    
+    # 3. 技术指标（使用pandas_ta）
+    # 动量指标
+    group['RSI'] = ta.rsi(group['Close'], length=14)
+    group['WR'] = ta.willr(group['High'], group['Low'], group['Close'], length=14)
+    group['CCI'] = ta.cci(group['High'], group['Low'], group['Close'], length=20)
+    
+    # 布林带
+    bbands = ta.bbands(group['Close'], length=20)
+    bbands = ta.bbands(group['Close'], length=20)
+    group['BB_lower'] = bbands['BBL_20_2.0']
+    group['BB_middle'] = bbands['BBM_20_2.0']
+    group['BB_upper'] = bbands['BBU_20_2.0']
+    group['BB_width'] = bbands['BBB_20_2.0']
+    group['BB_percent'] = bbands['BBP_20_2.0']    
+    
+    # 均线系统
+    group['MA5'] = ta.sma(group['Close'], length=5)
+    group['MA10'] = ta.sma(group['Close'], length=10)
+    group['MA20'] = ta.sma(group['Close'], length=20) 
+    group['MA50'] = ta.sma(group['Close'], length=50)
+    group['MA180'] = ta.sma(group['Close'], length=180)
+    
+    # MACD
+    macd = ta.macd(group['Close'], fast=12, slow=26, signal=9)
+    group['MACD'] = macd['MACD_12_26_9']
+    group['MACD_hist'] = macd['MACDh_12_26_9']
+    group['MACD_signal'] = macd['MACDs_12_26_9']
+    
+    # KDJ
+    stoch = ta.stoch(group['High'], group['Low'], group['Close'], k=14, d=3, smooth_k=3)
+    group['KDJ_K'] = stoch['STOCHk_14_3_3']
+    group['KDJ_D'] = stoch['STOCHd_14_3_3']
+    group['KDJ_J'] = 3 * group['KDJ_K'] - 2 * group['KDJ_D']
+    
+    # 波动性指标
+    group['ATR'] = ta.atr(group['High'], group['Low'], group['Close'], length=14)
+    
+    # 量价指标
+    group['OBV'] = ta.obv(group['Close'], group['Volume'])
+    adx = ta.adx(group['High'], group['Low'], group['Close'], length=14)
+    group['ADX'] = adx['ADX_14']
+    group['DMP'] = adx['DMP_14']
+    group['DMN'] = adx['DMN_14']
+    
+    # 随机RSI
+    stochrsi = ta.stochrsi(group['Close'], length=14, k=3, d=3)
+    group['StochRSI_K'] = stochrsi['STOCHRSIk_14_14_3_3']
+    group['StochRSI_D'] = stochrsi['STOCHRSId_14_14_3_3']
+    
+    # 自定义指标
+    group['price_volume_div'] = group['Close'].pct_change() / (group['Volume'].pct_change() + 1e-5)
+    group['vol_adjusted_mom'] = (group['Close'].pct_change(10) / group['Close'].rolling(10).std().replace(0, 1e-5)).clip(-10, 10)
+    group['smart_money'] = (group['Close'] - group['Low']) / (group['High'] - group['Low'] + 1e-5)
+    
+    return group
 
-    data['pct_chg'] = (data['Close']/data['lag_1'] - 1) * 100
+def set_indicators(data):
+    """主处理函数"""
+    # 基础清洗
+    data = data[data['Volume'] > 500].copy()
+    data['Date'] = pd.to_datetime(data['Date'])
+    
+    # 按Ticker分组处理（关键！）
+    data = data.groupby('Ticker', group_keys=False).apply(calculate_technical_indicators)
+    
+    # 全局填充剩余NA（谨慎操作）
+    num_cols = data.select_dtypes(include=np.number).columns
+    num_cols = num_cols.drop('target_pct_chg')
+    data[num_cols] = data[num_cols].fillna(method='ffill').fillna(0)
+
     return data
 
 
